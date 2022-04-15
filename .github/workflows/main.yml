@@ -1,0 +1,90 @@
+name: castquake
+
+on: [push]
+
+jobs:
+  windows-build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
+
+      - run: git checkout HEAD
+
+      - uses: microsoft/setup-msbuild@v1.1
+        
+      - run: msbuild -m -p:Configuration=rls-modern,Platform=x64
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: castQuake-latest-windows
+          path: |
+            ezquake.exe
+
+  linux-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get number of CPU cores
+        uses: SimenB/github-actions-cpu-cores@v1
+        id: cpu-cores
+
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
+
+      - run: git checkout HEAD
+
+      - name: "Install dependencies"
+        run: |
+          sudo apt-get -qq update
+          sudo apt-get -qq install --no-install-recommends gcc make libsdl2-dev libsndfile-dev libjansson-dev libspeex-dev libexpat1-dev libspeexdsp-dev libcurl4-openssl-dev libjpeg-dev libpng-dev
+        
+      - name: "Build"
+        run: |
+          make -j${{ steps.cpu-cores.outputs.count }}
+          make strip
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: castQuake-latest-linux
+          path: |
+            ezquake-linux-x86_64
+
+  macos-build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Get number of CPU cores
+        uses: SimenB/github-actions-cpu-cores@v1
+        id: cpu-cores
+
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
+
+      - run: git checkout HEAD
+
+      - name: "Install dependencies"
+        run: |
+          brew update
+          brew install pkgconfig pcre sdl2 sdl2_net sdl2_image sdl2_gfx sdl2_mixer jansson speex speexdsp freetype libsndfile
+
+      - name: "Build"
+        run: |
+          make -j${{ steps.cpu-cores.outputs.count }}
+          make strip
+
+      - name: "Create Bundle"
+        run: |
+          sh ./misc/install/create_osx_bundle.sh
+          mkdir artifact
+          mv ezQuake.app artifact/castQuake.app
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: castQuake-latest-macos-x86_64
+          path: |
+            artifact
