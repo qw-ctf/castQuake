@@ -33,6 +33,8 @@ cvar_t cl_useimagesinfraglog = {"cl_useimagesinfraglog", "0"};
 #define FRAGFILE_VERSION_1_00		"ezquake-1.00" /* fuh suggest such format */
 
 void Update_FlagStatus(int player_num, char *team, qbool got_flag);
+void Update_RuneStatus(int player_num, int rune);
+void Clear_RuneStatus(int player_num);
 
 typedef enum msgtype_s {
 	mt_fragged,
@@ -47,8 +49,13 @@ typedef enum msgtype_s {
 	mt_tkilled_unk,
 	mt_flagtouch,
 	mt_flagdrop,
-	mt_flagcap}
-msgtype_t;
+	mt_flagcap,
+
+	mt_rune_res,
+	mt_rune_str,
+	mt_rune_hst,
+	mt_rune_reg
+} msgtype_t;
 
 typedef struct wclass_s {
 	char	*keyword;
@@ -414,7 +421,24 @@ static void LoadFragFile(char *filename, qbool quiet)
 				fragdefs.num_fragmsgs++;
 
 				fragdefs.flagalerts = true;
-			}
+			} else if (!strcasecmp(Cmd_Argv(1), "RUNE_MSG")) {
+				if (!strcasecmp(Cmd_Argv(2), "X_RUNE_RES")) {
+					msgtype = mt_rune_res;
+				} else if (!strcasecmp(Cmd_Argv(2), "X_RUNE_STR")) {
+					msgtype = mt_rune_str;
+				} else if (!strcasecmp(Cmd_Argv(2), "X_RUNE_HST")) {
+					msgtype = mt_rune_hst;
+				} else if (!strcasecmp(Cmd_Argv(2), "X_RUNE_REG")) {
+					msgtype = mt_rune_reg;
+				} else {
+					Com_Printf("Fragfile warning (line %d): unexpected token \"%s\"\n", line, Cmd_Argv(2));
+					goto nextline;
+				}
+				fragdefs.msgdata[fragdefs.num_fragmsgs].type = msgtype;
+				fragdefs.msgdata[fragdefs.num_fragmsgs].msg1 = Q_strdup(Cmd_Argv(3));
+				fragdefs.msgdata[fragdefs.num_fragmsgs].msg2 = NULL;
+				fragdefs.num_fragmsgs++;
+            }
 		} else {
 			_check_version_defined;
 			Com_Printf("Fragfile warning (line %d): unexpected token \"%s\"\n", line, Cmd_Argv(0));
@@ -494,7 +518,7 @@ static void Stats_ParsePrintLine(const char *s, cfrags_format *cff, int offset)
 	const char *start, *name1, *name2, *t;
 	player_info_t *player1 = NULL, *player2 = NULL;
 
-	for (i = 0; i < MAX_CLIENTS; i++) 
+	for (i = 0; i < MAX_CLIENTS; i++)
 	{
 		start = s;
 		player1 = &cl.players[i];
@@ -504,8 +528,13 @@ static void Stats_ParsePrintLine(const char *s, cfrags_format *cff, int offset)
 
 		name1 = Info_ValueForKey(player1->userinfo, "name");
 		p1len = min(strlen(name1), 31);
-		
-		if (!strncmp(start, name1, p1len)) 
+
+        if (strncmp(start, name1, p1len) != 0) {
+          player1 = &cl.players[cls.lastto];
+          name1 = Info_ValueForKey(player1->userinfo, "name");
+          p1len = 0; // Message to "self" doesn't contain name
+        }
+
 		{
 			cff->p1pos = offset;
 			cff->p1len = p1len; 
@@ -538,7 +567,7 @@ static void Stats_ParsePrintLine(const char *s, cfrags_format *cff, int offset)
 				start = s + p1len;
 				fragmsg = fragdefs.fragmsgs[j];
 				msg1len = strlen(fragmsg->msg1);
-				if (!strncmp(start, fragmsg->msg1, msg1len)) 
+				if (!strncmp(start, fragmsg->msg1, msg1len))
 				{
 					if (fragmsg->type == mt_fragged || fragmsg->type == mt_frags ||
 						fragmsg->type == mt_tkills || fragmsg->type == mt_tkilled) 
@@ -603,6 +632,7 @@ foundmatch:
 			VX_TrackerDeath(i, fragmsg->wclass_index, fragstats[i].wdeaths[fragmsg->wclass_index]);
 			VX_TrackerStreakEnd(i, i, fragstats[i].streak);
 			fragstats[i].streak=0;
+            Clear_RuneStatus(i);
 			break;
 		}
 		case mt_suicide:
@@ -614,6 +644,7 @@ foundmatch:
 			VX_TrackerSuicide(i, fragmsg->wclass_index, fragstats[i].wsuicides[fragmsg->wclass_index]);
 			VX_TrackerStreakEnd(i, i, fragstats[i].streak);
 			fragstats[i].streak=0;
+            Clear_RuneStatus(i);
 			break;
 		}
 		case mt_fragged:
@@ -635,6 +666,7 @@ foundmatch:
 			VX_TrackerStreak(killer, fragstats[killer].streak);
 			VX_TrackerStreakEnd(victim, killer, fragstats[victim].streak);
 			fragstats[victim].streak=0;
+            Clear_RuneStatus(victim);
 			break;
 		}
 		case mt_frag:
@@ -666,6 +698,7 @@ foundmatch:
 						fragstats[killer].totalteamkills, fragstats[killer].teamkills[victim]);
 			VX_TrackerStreakEnd(victim, killer, fragstats[victim].streak);
 			fragstats[victim].streak=0;
+            Clear_RuneStatus(victim);
 			break;
 		}
 		case mt_tkilled_unk:
@@ -712,6 +745,18 @@ foundmatch:
 			flag_captured = true;
 			break;
 		}
+		case mt_rune_res:
+			Update_RuneStatus(i, IT_SIGIL1);
+			break;
+		case mt_rune_str:
+			Update_RuneStatus(i, IT_SIGIL2);
+			break;
+		case mt_rune_hst:
+			Update_RuneStatus(i, IT_SIGIL3);
+			break;
+		case mt_rune_reg:
+			Update_RuneStatus(i, IT_SIGIL4);
+			break;
 		default:
 			break;
 	}

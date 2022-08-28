@@ -5527,7 +5527,7 @@ qbool CL_Demo_NotForTrackedPlayer(void)
 
 	if (cls.lasttype == dem_multiple && ((tracknum == -1) || !(cls.lastto & (1 << tracknum))))
 		return true;
-	if (cls.lasttype == dem_single && ((tracknum == -1) || (cls.lastto != cl.spec_track)))
+	if (cls.lasttype == dem_single && (tracknum == -1))
 		return true;
 
 	return false;

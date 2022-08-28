@@ -261,6 +261,7 @@ static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, float x, int y, int max
 	extern mpic_t *sb_face_invis, *sb_face_quad, *sb_face_invuln;
 	extern mpic_t *sb_armor[3];
 	extern mpic_t *sb_items[32];
+    extern mpic_t *sb_sigil[4];
 
 	if (!ti_cl) {
 		return 0;
@@ -619,6 +620,20 @@ static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, float x, int y, int max
 						x += font_width;
 						break;
 
+					case 'r':
+						if (!width_only) {
+                          if (ti_cl->items & IT_SIGIL1)
+                            Draw_SPic(x, y, sb_sigil[0], 1.0 / 2 * scale);
+                          else if (ti_cl->items & IT_SIGIL2)
+                            Draw_SPic(x, y, sb_sigil[1], 1.0 / 2 * scale);
+                          else if (ti_cl->items & IT_SIGIL3)
+                            Draw_SPic(x, y, sb_sigil[2], 1.0 / 2 * scale);
+                          else if (ti_cl->items & IT_SIGIL4)
+                            Draw_SPic(x, y, sb_sigil[3], 1.0 / 2 * scale);
+						}
+						x += font_width;
+						break;
+
 					case '%': // wow, %% result in one %, how smart
 						if (!width_only) {
 							snprintf(tmp, sizeof(tmp), "%s%s", txtclr, "%");
@@ -830,6 +845,41 @@ void Update_FlagStatus(int player_num, char *team, qbool got_flag)
 	} else {
 		ti_clients[player_num].items &= ~flag;
 	}
+}
+
+// Reset this rune for all other players, and flag it for new player.
+void Update_RuneStatus(int player_num, int rune)
+{
+	int runes = IT_SIGIL1 | IT_SIGIL2 | IT_SIGIL3 | IT_SIGIL4;
+	int i;
+	for (i = 0; i < MAX_CLIENTS; i++) {
+		if (i == player_num) {
+          cl.players[i].stats[STAT_ITEMS] &= ~runes;
+          cl.players[i].stats[STAT_ITEMS] |= rune;
+			ti_clients[i].items &= ~runes;
+			ti_clients[i].items |= rune;
+            if (Cam_TrackNum() == i) {
+              cl.stats[STAT_ITEMS] &= ~runes;
+              cl.stats[STAT_ITEMS] |= rune;
+            }
+		} else {
+          cl.players[i].stats[STAT_ITEMS] &= ~rune;
+			ti_clients[i].items &= ~rune;
+            if (Cam_TrackNum() == i) {
+              cl.stats[STAT_ITEMS] &= ~rune;
+            }
+		}
+	}
+}
+
+void Clear_RuneStatus(int player_num)
+{
+  int runes = IT_SIGIL1 | IT_SIGIL2 | IT_SIGIL3 | IT_SIGIL4;
+  cl.players[player_num].stats[STAT_ITEMS] &= ~runes;
+  ti_clients[player_num].items &= ~runes;
+  if (Cam_TrackNum() == player_num) {
+    cl.stats[STAT_ITEMS] &= ~runes;
+  }
 }
 
 static void Update_TeamInfo(void)

@@ -2649,6 +2649,11 @@ static void FlushString (const wchar *s, int level, qbool team, int offset)
 		return;
 	}
 
+    // Messages parsed, but not for us so skip printing.
+	if (Cam_TrackNum() != cl.spec_track) {
+		return;
+	}
+
 	// Colorize player names here
 	if (scr_coloredfrags.value && cff.isFragMsg && cff.p1len) {
 		text = CL_ColorizeFragMessage(text, &cff);
@@ -3300,6 +3305,7 @@ void CL_ParseStufftext (void)
 
 void CL_SetStat (int stat, int value)
 {
+    int runes = IT_SIGIL1 | IT_SIGIL2 | IT_SIGIL3 | IT_SIGIL4;
 	int	j;
 
 	if (stat < 0 || stat >= MAX_CL_STATS) {
@@ -3312,7 +3318,11 @@ void CL_SetStat (int stat, int value)
 	{
 		int old_value = cl.players[cls.lastto].stats[stat];
 
-		cl.players[cls.lastto].stats[stat] = value;
+        if (stat == STAT_ITEMS) {
+          cl.players[cls.lastto].stats[stat] = (value & ~runes) | (old_value & runes);
+        } else {
+          cl.players[cls.lastto].stats[stat] = value;
+        }
 
 		// If we're not tracking the active player,
 		// then don't update sbar and such.
@@ -3328,15 +3338,12 @@ void CL_SetStat (int stat, int value)
 
 	Sbar_Changed();
 
-	if (stat == STAT_ITEMS)
-	{
-		// Set flash times.
-		for (j = 0; j < 32; j++)
-			if ( (value & (1 << j)) && !(cl.stats[stat] & (1 << j)) )
-				cl.item_gettime[j] = cl.time;
-	}
-
-	cl.stats[stat] = value;
+    if (stat == STAT_ITEMS) {
+      int old_value = cl.stats[stat];
+      cl.stats[stat] = (value & ~runes) | (old_value & runes);
+    } else {
+      cl.stats[stat] = value;
+    }
 
 #ifdef FTE_PEXT_ACCURATETIMINGS
 	if (stat == STAT_TIME && (cls.fteprotocolextensions & FTE_PEXT_ACCURATETIMINGS))
@@ -3360,7 +3367,7 @@ void CL_SetStat (int stat, int value)
 		}
 	}
 
-	TP_StatChanged(stat, value);
+    TP_StatChanged(stat, value);
 }
 
 void CL_MuzzleFlash (void) 
